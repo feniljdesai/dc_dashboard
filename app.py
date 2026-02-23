@@ -1,4 +1,4 @@
 ﻿import streamlit as st
 
-st.title("DC Dashboard is live")
+st.title("✅ Streamlit is working")
 st.write("If you see this, the app is running.")

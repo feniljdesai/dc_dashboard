@@ -1,10 +1,12 @@
+cd "C:\Users\Fenil Desai\dc_dashboard"
+
+$app = @'
 import streamlit as st
 import pandas as pd
 import json
 from engine import Inputs, compute
 
-st.set_page_config(page_title="DC Concept Sizer", layout="wide")
-
+st.set_page_config(page_title="Data Center Concept Sizer", layout="wide")
 st.title("Data Center Concept Sizer")
 
 with st.sidebar:
@@ -14,19 +16,51 @@ with st.sidebar:
     avg_kw_per_rack = st.number_input("Average rack density (kW/rack)", min_value=1.0, value=30.0, step=1.0)
     pue_target = st.number_input("PUE target", min_value=1.05, value=1.30, step=0.01)
 
+    st.subheader("Reliability")
     redundancy = st.selectbox("Redundancy", ["N", "N+1", "2N"], index=1)
     ups_runtime_min = st.number_input("UPS runtime (minutes)", min_value=1.0, value=5.0, step=1.0)
+    generator_margin = st.slider("Generator margin", 0.0, 0.5, 0.10, 0.01)
 
+    st.subheader("Electrical assumptions")
+    lv_voltage = st.selectbox("LV voltage (V)", [480, 415, 400], index=0)
+    power_factor = st.number_input("Power factor", min_value=0.80, max_value=1.0, value=0.95, step=0.01)
+
+    ups_module_mw = st.number_input("UPS module size (MW)", min_value=0.25, value=1.0, step=0.25)
+    gen_unit_mw = st.number_input("Generator unit size (MW)", min_value=0.5, value=2.5, step=0.5)
+    xfmr_mva = st.number_input("Transformer size (MVA)", min_value=1.0, value=5.0, step=1.0)
+
+    pdu_kw = st.number_input("PDU capacity (kW)", min_value=50.0, value=500.0, step=50.0)
+    rpp_circuits = st.number_input("RPP circuits per unit", min_value=12, value=84, step=6)
+    circuits_per_rack = st.number_input("Branch circuits per rack", min_value=1, value=2, step=1)
+    rack_pdu_per_rack = st.number_input("Rack PDUs per rack", min_value=1, value=2, step=1)
+
+    st.subheader("Cooling")
+    cooling_plant = st.selectbox(
+        "Cooling plant",
+        [
+            "DX (air-cooled CRAC/RTU)",
+            "CHW air-cooled chillers",
+            "CHW water-cooled chillers",
+            "Liquid cooling ready (D2C + CDU + CHW)",
+        ],
+        index=1,
+    )
     cooling_margin = st.slider("Cooling margin", 0.0, 0.5, 0.10, 0.01)
+    chw_deltaT_F = st.number_input("CHW delta-T (°F)", min_value=8.0, value=20.0, step=1.0)
+    economizer = st.checkbox("Economizer enabled", value=True)
+    chiller_unit_tons = st.number_input("Chiller unit size (tons)", min_value=100.0, value=500.0, step=50.0)
+    crah_unit_kw = st.number_input("CRAH/CRAC unit sensible (kW)", min_value=25.0, value=150.0, step=25.0)
+    cdu_unit_kw = st.number_input("CDU unit capacity (kW)", min_value=50.0, value=200.0, step=25.0)
+    percent_liquid_cooled = st.slider("Liquid-cooled fraction", 0.0, 1.0, 0.0, 0.05)
 
     st.subheader("Space assumptions")
     white_space_ft2_per_rack = st.number_input("White space per rack (ft²/rack)", min_value=10.0, value=30.0, step=1.0)
-    building_multiplier = st.number_input("Building multiplier (total/white space)", min_value=1.0, value=2.5, step=0.1)
+    building_multiplier = st.number_input("Building multiplier", min_value=1.0, value=2.5, step=0.1)
 
     st.subheader("Cost assumptions")
-    cost_per_mw_baseline_usd = st.number_input("Baseline cost ($/MW of IT)", min_value=1_000_000.0, value=11_300_000.0, step=100_000.0)
-    tier_uplift = st.slider("Tier/redundancy uplift", 0.0, 0.6, 0.15, 0.01)
-    density_uplift = st.slider("High density uplift", 0.0, 0.6, 0.10, 0.01)
+    cost_per_mw_baseline_usd = st.number_input("Baseline cost ($/MW IT)", min_value=1_000_000.0, value=11_300_000.0, step=100_000.0)
+    redundancy_uplift = st.slider("Redundancy uplift", 0.0, 0.6, 0.15, 0.01)
+    cooling_uplift = st.slider("Cooling uplift", 0.0, 0.6, 0.10, 0.01)
     market_uplift = st.slider("Market uplift", 0.0, 0.6, 0.00, 0.01)
     contingency = st.slider("Contingency", 0.0, 0.5, 0.10, 0.01)
 
@@ -36,57 +70,100 @@ inputs = Inputs(
     pue_target=pue_target,
     redundancy=redundancy,
     ups_runtime_min=ups_runtime_min,
+    generator_margin=generator_margin,
+    lv_voltage=lv_voltage,
+    power_factor=power_factor,
+    ups_module_mw=ups_module_mw,
+    gen_unit_mw=gen_unit_mw,
+    xfmr_mva=xfmr_mva,
+    pdu_kw=pdu_kw,
+    rpp_circuits=int(rpp_circuits),
+    circuits_per_rack=int(circuits_per_rack),
+    rack_pdu_per_rack=int(rack_pdu_per_rack),
+    cooling_plant=cooling_plant,
     cooling_margin=cooling_margin,
+    chw_deltaT_F=chw_deltaT_F,
+    economizer=economizer,
+    chiller_unit_tons=chiller_unit_tons,
+    crah_unit_kw=crah_unit_kw,
+    cdu_unit_kw=cdu_unit_kw,
+    percent_liquid_cooled=percent_liquid_cooled,
     white_space_ft2_per_rack=white_space_ft2_per_rack,
     building_multiplier=building_multiplier,
     cost_per_mw_baseline_usd=cost_per_mw_baseline_usd,
-    tier_uplift=tier_uplift,
-    density_uplift=density_uplift,
+    redundancy_uplift=redundancy_uplift,
+    cooling_uplift=cooling_uplift,
     market_uplift=market_uplift,
     contingency=contingency,
 )
 
-result = compute(inputs)
+res = compute(inputs)
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Racks", f"{result['racks']:,}")
-c2.metric("Facility Power", f"{result['facility_kw']/1000:.2f} MW")
-c3.metric("Cooling", f"{result['cooling_tons']:.0f} tons")
-c4.metric("CAPEX (rough)", f"${result['cost_usd']/1e6:.1f}M")
+tab1, tab2, tab3 = st.tabs(["Summary", "BOM + Sizing", "Export"])
 
-st.divider()
+with tab1:
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Racks", f"{res['racks']:,}")
+    c2.metric("Facility Power", f"{res['facility_kw']/1000:.2f} MW")
+    c3.metric("Cooling", f"{res['cooling_tons']:.0f} tons")
+    c4.metric("CAPEX (rough)", f"${res['cost_usd']/1e6:.1f}M")
 
-left, right = st.columns([1.2, 1.0])
+    st.divider()
+    df_key = pd.DataFrame([
+        ["IT load", res["it_kw"], "kW"],
+        ["Facility power", res["facility_kw"], "kW"],
+        ["Non-IT power", res["non_it_kw"], "kW"],
+        ["Cooling capacity", res["cooling_tons"], "tons"],
+        ["UPS installed", res["ups_installed_mw"], "MW"],
+        ["Battery energy", res["battery_mwh"], "MWh"],
+        ["Generator installed", res["gen_installed_mw"], "MW"],
+        ["LV current (facility)", res["facility_amps_lv"], "A (approx)"],
+        ["LV current (IT)", res["it_amps_lv"], "A (approx)"],
+        ["CHW flow", res["chw_gpm"], "gpm (approx)"],
+        ["White space", res["white_space_ft2"], "ft²"],
+        ["Building total", res["building_ft2"], "ft²"],
+    ], columns=["Metric", "Value", "Unit"])
+    st.dataframe(df_key, use_container_width=True, hide_index=True)
 
-with left:
-    st.subheader("Key outputs")
-    st.write({
-        "IT load (kW)": round(result["it_kw"], 1),
-        "Non-IT power (kW)": round(result["non_it_kw"], 1),
-        "Redundancy factor": round(result["redundancy_factor"], 3),
-        "UPS (MW)": round(result["ups_mw"], 2),
-        "Battery (MWh)": round(result["battery_mwh"], 2),
-        "White space (ft²)": round(result["white_space_ft2"], 0),
-        "Building (ft²)": round(result["building_ft2"], 0),
-    })
+with tab2:
+    st.subheader("Equipment BOM + sizing (concept)")
+    equip_df = pd.DataFrame(res["equipment"])
 
-with right:
+    categories = ["All"] + sorted(equip_df["Category"].unique().tolist())
+    colA, colB = st.columns([0.35, 0.65])
+    with colA:
+        cat = st.selectbox("Category filter", categories, index=0)
+    with colB:
+        q = st.text_input("Search (name/notes/basis)", value="")
+
+    filtered = equip_df.copy()
+    if cat != "All":
+        filtered = filtered[filtered["Category"] == cat]
+    if q.strip():
+        needle = q.strip().lower()
+        mask = (
+            filtered["Equipment"].str.lower().str.contains(needle, na=False)
+            | filtered["Sizing basis"].str.lower().str.contains(needle, na=False)
+            | filtered["Notes"].str.lower().str.contains(needle, na=False)
+        )
+        filtered = filtered[mask]
+
+    st.dataframe(filtered, use_container_width=True, hide_index=True)
+
+with tab3:
     st.subheader("Export")
-    flat = {
-        **{f"input_{k}": v for k, v in result["inputs"].items()},
-        "it_kw": result["it_kw"],
-        "racks": result["racks"],
-        "facility_kw": result["facility_kw"],
-        "non_it_kw": result["non_it_kw"],
-        "cooling_tons": result["cooling_tons"],
-        "ups_mw": result["ups_mw"],
-        "battery_mwh": result["battery_mwh"],
-        "white_space_ft2": result["white_space_ft2"],
-        "building_ft2": result["building_ft2"],
-        "cost_usd": result["cost_usd"],
-    }
-    df = pd.DataFrame([flat])
-    st.download_button("Download CSV", data=df.to_csv(index=False), file_name="dc_concept_snapshot.csv", mime="text/csv")
-    st.download_button("Download JSON", data=json.dumps(result, indent=2), file_name="dc_concept_snapshot.json", mime="application/json")
+    st.download_button(
+        "Download BOM CSV",
+        data=pd.DataFrame(res["equipment"]).to_csv(index=False),
+        file_name="dc_bom_concept.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        "Download Full JSON",
+        data=json.dumps(res, indent=2),
+        file_name="dc_concept_full.json",
+        mime="application/json",
+    )
+'@
 
-st.caption("Next upgrades: ASHRAE inlet compliance panel, HVAC plant selection, and Tier III/IV topology outputs.")
+[System.IO.File]::WriteAllText("app.py", $app, (New-Object System.Text.UTF8Encoding($false)))
